@@ -1,10 +1,11 @@
-import pika
 import json
-import time
-from typing import Optional, TypedDict, Protocol, Any, ClassVar
-from dotenv import load_dotenv
 import os
+import time
 import uuid
+from typing import Any, ClassVar, Optional, Protocol, TypedDict
+
+import pika
+from dotenv import load_dotenv
 
 
 class RabbitMessage(TypedDict):
@@ -73,14 +74,8 @@ class RabbitMQDatasource:
             except pika.exceptions.AMQPConnectionError as e:
                 attempts += 1
                 if attempts == self.MAX_RECONNECT_ATTEMPTS:
-                    raise Exception(
-                        f"No se pudo conectar a RabbitMQ después de "
-                        f"{attempts} intentos: {str(e)}"
-                    )
-                print(
-                    f"Error de conexión. Reintentando en "
-                    f"{self.RECONNECT_DELAY} segundos..."
-                )
+                    raise Exception(f"No se pudo conectar a RabbitMQ después de {attempts} intentos: {str(e)}")
+                print(f"Error de conexión. Reintentando en {self.RECONNECT_DELAY} segundos...")
                 time.sleep(self.RECONNECT_DELAY)
 
     def _ensure_connection(self) -> None:
@@ -101,9 +96,7 @@ class RabbitMQDatasource:
             auto_ack=True,
         )
 
-    def _handle_response(
-        self, ch: Any, method: Any, properties: Any, body: bytes
-    ) -> None:
+    def _handle_response(self, ch: Any, method: Any, properties: Any, body: bytes) -> None:
         """Maneja las respuestas recibidas"""
         if self._response_callback:
             try:
@@ -118,9 +111,7 @@ class RabbitMQDatasource:
         """Publica un mensaje en la cola principal"""
         try:
             self._ensure_connection()
-            self.channel.basic_publish(
-                exchange="", routing_key=self.queue, body=json.dumps(message)
-            )
+            self.channel.basic_publish(exchange="", routing_key=self.queue, body=json.dumps(message))
         except Exception as e:
             print(f"Error al publicar mensaje: {str(e)}")
             raise
@@ -129,20 +120,16 @@ class RabbitMQDatasource:
         """Publica una respuesta en la cola específica"""
         try:
             self._ensure_connection()
-            self.channel.basic_publish(
-                exchange="", routing_key=response_queue, body=json.dumps(message)
-            )
+            self.channel.basic_publish(exchange="", routing_key=response_queue, body=json.dumps(message))
         except Exception as e:
             print(f"Error al publicar respuesta: {str(e)}")
             raise
 
     def start_consuming(self, callback: MessageCallback) -> None:
-        """Inicia el consumo de mensajes"""
+        """Inicia el consumo de mensajes hola mundo"""
         try:
             self._ensure_connection()
-            self.channel.basic_consume(
-                queue=self.queue, on_message_callback=callback, auto_ack=True
-            )
+            self.channel.basic_consume(queue=self.queue, on_message_callback=callback, auto_ack=True)
             self.channel.start_consuming()
         except Exception as e:
             print(f"Error al iniciar consumo: {str(e)}")
