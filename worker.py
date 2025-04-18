@@ -3,17 +3,16 @@ Worker que procesa mensajes de RabbitMQ para operaciones de multiplicación y su
 Implementa dos workers independientes que consumen de colas diferentes.
 """
 
-import logging
 import signal
 import sys
 from typing import Any, Dict
 
 from core.config.settings import RABBITMQ_CONFIG
-from features.rabbitmq.rabbitmq_manager import RabbitMQManager
+from core.utils.logging import get_logger
+from features.rabbitmq.rabbit_di import ContainerRabbitMQ
 
 # Configurar logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Configuración de colas
 QUEUE_MULTIPLY = f"{RABBITMQ_CONFIG['queue']}_mul"
@@ -70,7 +69,7 @@ class Worker:
 
     def __init__(self):
         """Inicializa el worker con la conexión a RabbitMQ."""
-        self.rabbit_conn = RabbitMQManager()
+        self.rabbit_conn = ContainerRabbitMQ()
         self.server = self.rabbit_conn.conexionServer()
         self._running = True
 

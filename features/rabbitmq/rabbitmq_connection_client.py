@@ -1,6 +1,11 @@
+"""
+Módulo que implementa el cliente RabbitMQ para enviar mensajes y recibir respuestas.
+"""
+
 import logging
 import time
 import uuid
+from typing import Optional
 
 import pika
 from pika.exceptions import AMQPChannelError, AMQPConnectionError, StreamLostError
@@ -11,7 +16,17 @@ logger = logging.getLogger(__name__)
 
 
 class RabbitMQClient:
+    """
+    Cliente RabbitMQ que envía mensajes y espera respuestas.
+    """
+
     def __init__(self, rabbit_conn: RabbitMQConnection):
+        """
+        Inicializa el cliente RabbitMQ.
+
+        Args:
+            rabbit_conn (RabbitMQConnection): Instancia de la conexión RabbitMQ.
+        """
         self.rabbit_conn = rabbit_conn
         self.channel = None
         self.connection = None
@@ -34,6 +49,7 @@ class RabbitMQClient:
         self.channel.basic_consume(queue=self.callback_queue, on_message_callback=self.on_response, auto_ack=True)
 
     def on_response(self, ch, method, props, body):
+        """Callback que procesa la respuesta recibida"""
         if self.corr_id == props.correlation_id:
             self.response = body
 
@@ -50,9 +66,23 @@ class RabbitMQClient:
                 return False
         return True
 
-    def call(self, routing_key, message, max_retries=3):
-        """Envía un mensaje con patrón RPC y maneja reconexiones automáticas"""
+    def call(self, routing_key: str, message: str, max_retries: int = 3) -> Optional[str]:
+        """
+        Envía un mensaje y espera la respuesta con reintentos.
+
+        Args:
+            routing_key (str): Clave de enrutamiento para el mensaje
+            message (str): Mensaje a enviar
+            max_retries (int): Número máximo de reintentos
+
+        Returns:
+            Optional[str]: Respuesta recibida o None si falla después de los reintentos
+
+        Raises:
+            ConnectionError: Si no se puede establecer la conexión después de los reintentos
+        """
         retries = 0
+        last_error = None
 
         while retries < max_retries:
             try:
@@ -62,18 +92,20 @@ class RabbitMQClient:
                 self.response = None
                 self.corr_id = str(uuid.uuid4())
 
+                logger.info(f"Enviando mensaje (intento {retries + 1}/{max_retries})")
                 self.channel.basic_publish(
                     exchange="",
                     routing_key=routing_key,
                     properties=pika.BasicProperties(
                         reply_to=self.callback_queue,
                         correlation_id=self.corr_id,
+                        delivery_mode=2,  # Hacer el mensaje persistente
                     ),
                     body=message.encode(),
                 )
 
                 # Esperamos la respuesta con timeout
-                timeout = 30  # 30 segundos de timeout
+                timeout = 60  # 60 segundos de timeout
                 start_time = time.time()
 
                 while self.response is None:
@@ -81,7 +113,7 @@ class RabbitMQClient:
                         raise TimeoutError("Tiempo de espera agotado para la respuesta")
 
                     try:
-                        self.rabbit_conn.process_data_events(time_limit=1.0)
+                        self.rabbit_conn.process_data_events(time_limit=0.5)
                     except (AMQPConnectionError, AMQPChannelError, StreamLostError) as e:
                         logger.error(f"Error al procesar eventos: {str(e)}")
                         if not self.ensure_connection():
@@ -97,6 +129,7 @@ class RabbitMQClient:
 
             except (AMQPConnectionError, AMQPChannelError, StreamLostError, ConnectionError) as e:
                 retries += 1
+                last_error = e
                 logger.error(f"Error de conexión: {str(e)}. Reintento {retries}/{max_retries}")
                 time.sleep(2)
                 if not self.ensure_connection():
@@ -106,4 +139,8 @@ class RabbitMQClient:
                 logger.error(f"Error inesperado: {str(e)}")
                 raise
 
-        raise ConnectionError(f"No se pudo completar la operación después de {max_retries} intentos")
+        if last_error:
+            raise ConnectionError(
+                f"No se pudo completar la operación después de {max_retries} intentos"
+            ) from last_error
+        return None

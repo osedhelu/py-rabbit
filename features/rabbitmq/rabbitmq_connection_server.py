@@ -1,11 +1,10 @@
 import json
-import logging
 
 import pika
 
-# Configurar logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from core.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class RabbitMQServer:

@@ -3,7 +3,6 @@ Módulo que maneja la conexión con RabbitMQ.
 Implementa un patrón Singleton para mantener una única instancia de conexión.
 """
 
-import logging
 import time
 from typing import Optional
 
@@ -11,8 +10,9 @@ import pika
 from pika.exceptions import AMQPChannelError, AMQPConnectionError, StreamLostError
 
 from core.config.settings import RABBITMQ_CONFIG
+from core.utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class RabbitMQConnection:

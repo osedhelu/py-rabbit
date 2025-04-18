@@ -1,16 +1,16 @@
-import logging
 from typing import Optional
 
+from core.utils.logging import get_logger
 from features.rabbitmq.rabbitmq_connection_client import RabbitMQClient
 from features.rabbitmq.rabbitmq_connection_server import RabbitMQServer
 
 from .conexion import RabbitMQConnection
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
-class RabbitMQManager:
-    _instance: Optional["RabbitMQManager"] = None
+class ContainerRabbitMQ:
+    _instance: Optional["ContainerRabbitMQ"] = None
     _connection: Optional[RabbitMQConnection] = None
 
     def __new__(cls):

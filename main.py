@@ -5,16 +5,18 @@ Utiliza RabbitMQ para procesar las operaciones de forma asíncrona.
 
 import json
 import logging
-from typing import Any, Dict
+import time
+from typing import Any, Callable, Dict
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from core.config.settings import RABBITMQ_CONFIG
-from features.rabbitmq.rabbitmq_manager import RabbitMQManager
+from core.utils.logging import setup_logging
+from features.rabbitmq.rabbit_di import ContainerRabbitMQ
 
 # Configurar logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+setup_logging()
 logger = logging.getLogger(__name__)
 
 # Configuración de colas
@@ -27,7 +29,7 @@ app = FastAPI(
 )
 
 # Inicializar conexión RabbitMQ
-rabbit_manager = RabbitMQManager()
+rabbit_manager = ContainerRabbitMQ()
 
 
 class OperationRequest(BaseModel):
@@ -42,6 +44,51 @@ class OperationResponse(BaseModel):
 
     result: float
     operation: str
+
+
+def with_retry(operation: Callable, max_retries: int = 5, retry_delay: int = 2) -> Any:
+    """
+    Ejecuta una operación con reintentos en caso de error de conexión.
+
+    Args:
+        operation (Callable): Función a ejecutar
+        max_retries (int): Número máximo de reintentos
+        retry_delay (int): Tiempo de espera entre reintentos en segundos
+
+    Returns:
+        Any: Resultado de la operación
+
+    Raises:
+        HTTPException: Si la operación falla después de los reintentos
+    """
+    retries = 0
+    last_error = None
+
+    while retries < max_retries:
+        try:
+            return operation()
+        except Exception as e:
+            retries += 1
+            last_error = e
+            logger.warning(f"Intento {retries}/{max_retries} fallido: {str(e)}")
+
+            if retries < max_retries:
+                logger.info(f"Esperando {retry_delay} segundos antes de reintentar...")
+                time.sleep(retry_delay)
+
+                # Intentar reconectar
+                if not rabbit_manager.connection.is_connected():
+                    logger.info("Intentando reconectar con RabbitMQ...")
+                    if rabbit_manager.connection.reconnect():
+                        logger.info("Reconexión exitosa")
+                    else:
+                        logger.error("No se pudo reconectar con RabbitMQ")
+            else:
+                logger.error(f"Operación fallida después de {max_retries} intentos")
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Error de conexión con RabbitMQ después de {max_retries} intentos: {str(last_error)}",
+                ) from last_error
 
 
 @app.on_event("startup")
@@ -81,7 +128,8 @@ async def multiply(request: OperationRequest) -> Dict[str, Any]:
     Raises:
         HTTPException: Si hay error en la operación
     """
-    try:
+
+    def operation():
         payload = {"a": request.a, "b": request.b}
         response = rabbit_manager.conexionClient().call(QUEUE_MULTIPLY, json.dumps(payload))
 
@@ -93,9 +141,8 @@ async def multiply(request: OperationRequest) -> Dict[str, Any]:
             raise HTTPException(status_code=500, detail=f"Error en la multiplicación: {result['error']}")
 
         return {"result": result["result"], "operation": "multiply"}
-    except Exception as e:
-        logger.error(f"Error en multiplicación: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error en la operación: {str(e)}") from e
+
+    return with_retry(operation)
 
 
 @app.post("/sum/", response_model=OperationResponse)
@@ -112,7 +159,8 @@ async def sum(request: OperationRequest) -> Dict[str, Any]:
     Raises:
         HTTPException: Si hay error en la operación
     """
-    try:
+
+    def operation():
         payload = {"a": request.a, "b": request.b}
         response = rabbit_manager.conexionClient().call(QUEUE_SUM, json.dumps(payload))
 
@@ -124,6 +172,5 @@ async def sum(request: OperationRequest) -> Dict[str, Any]:
             raise HTTPException(status_code=500, detail=f"Error en la suma: {result['error']}")
 
         return {"result": result["result"], "operation": "sum"}
-    except Exception as e:
-        logger.error(f"Error en suma: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error en la operación: {str(e)}") from e
+
+    return with_retry(operation)
