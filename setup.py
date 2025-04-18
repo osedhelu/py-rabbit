@@ -7,5 +7,7 @@ setup(
     install_requires=[
         "pika",
         "python-dotenv",
+        "fastapi",
+        "uvicorn",
     ],
 )

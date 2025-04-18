@@ -1,154 +1,119 @@
-# Py-Rabbit
+# Microservicio RabbitMQ + FastAPI
 
-Implementación de un sistema de mensajería usando RabbitMQ siguiendo los principios de Clean Architecture.
+Microservicio que utiliza RabbitMQ como medio de comunicación y FastAPI para exponer endpoints REST.
+
+## Características
+
+- Arquitectura limpia y modular
+- Comunicación asíncrona con RabbitMQ
+- API REST con FastAPI
+- Manejo de errores robusto
+- Logging estructurado
+- Configuración mediante variables de entorno
 
 ## Estructura del Proyecto
 
 ```
 py-rabbit/
-├── src/
-│   ├── domain/
-│   │   ├── entities/
-│   │   │   └── message.py        # Entidad Message
-│   │   ├── repositories/
-│   │   │   └── message_repository.py  # Interfaz del repositorio
-│   │   └── usecases/
-│   │       ├── send_message_usecase.py    # Caso de uso para enviar mensajes
-│   │       └── receive_message_usecase.py # Caso de uso para recibir mensajes
-│   └── infrastructure/
-│       ├── datasources/
-│       │   └── rabbitmq_datasource.py     # Implementación de RabbitMQ
-│       └── repositories/
-│           └── rabbitmq_repository.py     # Implementación del repositorio
-├── producer.py        # Script para enviar mensajes
-├── consumer.py        # Script para recibir mensajes
-└── setup.py          # Configuración del proyecto
+├── features/                    # Características del sistema
+│   ├── rabbitmq/               # Feature de RabbitMQ
+│   │   ├── api/               # Endpoints específicos de RabbitMQ
+│   │   ├── domain/           # Lógica de negocio de RabbitMQ
+│   │   └── infrastructure/  # Implementaciones técnicas
+│   └── users/                # Feature de Usuarios
+├── core/                     # Componentes centrales compartidos
+├── tests/                  # Pruebas
+├── .env.example          # Variables de entorno de ejemplo
+└── requirements.txt     # Dependencias
 ```
-
-## Características
-
-- Implementación de Clean Architecture
-- Patrón Singleton para la conexión RabbitMQ
-- Manejo automático de reconexiones
-- Sistema de colas de respuesta
-- Tipado estático con Python
-- Manejo de errores robusto
 
 ## Requisitos
 
 - Python 3.9+
 - RabbitMQ
-- Dependencias:
-  - pika
-  - python-dotenv
+- pip
 
 ## Instalación
 
 1. Clonar el repositorio:
 ```bash
-git clone <url-del-repositorio>
+git clone https://github.com/tu-usuario/py-rabbit.git
 cd py-rabbit
 ```
 
-2. Crear y activar un entorno virtual:
+2. Crear y activar entorno virtual:
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # En Linux/Mac
+source .venv/bin/activate  # Linux/Mac
 # o
-.venv\Scripts\activate     # En Windows
+.venv\Scripts\activate  # Windows
 ```
 
 3. Instalar dependencias:
 ```bash
-pip install -e .
+pip install -r requirements.txt
 ```
 
-## Configuración
-
-Crear un archivo `.env` en la raíz del proyecto:
-```env
-RABBITMQ_URL=amqp://guest:guest@localhost:5672/
-RABBITMQ_QUEUE=notifications
+4. Configurar variables de entorno:
+```bash
+cp .env.example .env
+# Editar .env con tus configuraciones
 ```
 
 ## Uso
 
-### Producer (Enviar mensajes)
-
-El producer envía mensajes y espera respuestas:
-
+1. Iniciar el servidor FastAPI:
 ```bash
-python producer.py
+uvicorn src.main:app --reload
 ```
 
-Características:
-- Envía mensajes cada 5 segundos
-- Configura automáticamente una cola de respuesta exclusiva
-- Maneja las respuestas recibidas
-- Reconexión automática en caso de fallos
-
-### Consumer (Recibir mensajes)
-
-El consumer recibe mensajes y envía respuestas:
-
+2. Iniciar el consumer de RabbitMQ:
 ```bash
-python consumer.py
+python src/consumer.py
 ```
 
-Características:
-- Recibe mensajes de forma continua
-- Procesa mensajes según su tipo
-- Envía respuestas a la cola especificada
-- Manejo de errores robusto
+3. Acceder a la documentación de la API:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
-## Arquitectura
+## Endpoints
 
-### Clean Architecture
+### RabbitMQ
 
-El proyecto sigue los principios de Clean Architecture:
+- `POST /rabbitmq/send`: Envía un mensaje a RabbitMQ
+- `GET /rabbitmq/responses/{correlation_id}`: Obtiene una respuesta
 
-1. **Domain Layer**:
-   - Entities: `Message`
-   - Repositories: `MessageRepository` (interfaz)
-   - Use Cases: `SendMessageUsecase`, `ReceiveMessageUsecase`
+## Ejemplo de Uso
 
-2. **Infrastructure Layer**:
-   - Datasources: `RabbitMQDatasource`
-   - Repositories: `RabbitMQRepository`
+```python
+import requests
 
-### Flujo de Mensajes
+# Enviar mensaje
+response = requests.post(
+    "http://localhost:8000/rabbitmq/send",
+    json={
+        "message_type": "get_user",
+        "payload": {"user_id": "123"}
+    }
+)
 
-1. **Envío de Mensaje**:
-   - Producer crea un mensaje con tipo y payload
-   - Se genera un ID de correlación único
-   - Se incluye la cola de respuesta del producer
-   - El mensaje se envía a la cola principal
+# Obtener correlation_id
+correlation_id = response.json()["correlation_id"]
 
-2. **Recepción de Mensaje**:
-   - Consumer recibe el mensaje
-   - Procesa el mensaje según su tipo
-   - Crea una respuesta con el mismo ID de correlación
-   - Envía la respuesta a la cola especificada
-
-3. **Recepción de Respuesta**:
-   - Producer recibe la respuesta en su cola exclusiva
-   - Procesa la respuesta usando el callback
-
-## Manejo de Errores
-
-- Reconexión automática a RabbitMQ
-- Manejo de colas existentes
-- Validación de mensajes y respuestas
-- Logs detallados para depuración
+# Obtener respuesta
+response = requests.get(
+    f"http://localhost:8000/rabbitmq/responses/{correlation_id}"
+)
+```
 
 ## Contribuir
 
-1. Fork el repositorio
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+1. Fork el proyecto
+2. Crear una rama para tu feature (`git checkout -b feature/AmazingFeature`)
 3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
 4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+5. Abrir un Pull Request
 
 ## Licencia
 
-Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles. 
+Distribuido bajo la Licencia MIT. Ver `LICENSE` para más información. 

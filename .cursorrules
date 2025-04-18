@@ -1,0 +1,202 @@
+# Reglas de Desarrollo para Microservicio RabbitMQ + FastAPI
+
+## Estructura del Proyecto
+```
+py-rabbit/
+├── features/                    # Características del sistema
+│   ├── rabbitmq/               # Feature de RabbitMQ
+│   │   ├── api/               # Endpoints específicos de RabbitMQ
+│   │   │   ├── __init__.py
+│   │   │   └── routes.py
+│   │   ├── domain/           # Lógica de negocio de RabbitMQ
+│   │   │   ├── __init__.py
+│   │   │   ├── entities/    # Entidades específicas
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── message.py
+│   │   │   └── usecases/    # Casos de uso
+│   │   │       ├── __init__.py
+│   │   │       ├── send_message.py
+│   │   │       └── receive_message.py
+│   │   └── infrastructure/  # Implementaciones técnicas
+│   │       ├── __init__.py
+│   │       ├── datasources/ # Fuentes de datos
+│   │       │   ├── __init__.py
+│   │       │   └── rabbitmq.py
+│   │       └── repositories/ # Repositorios
+│   │           ├── __init__.py
+│   │           └── message_repository.py
+│   │
+│   └── users/                # Feature de Usuarios
+│       ├── api/             # Endpoints de usuarios
+│       │   ├── __init__.py
+│       │   └── routes.py
+│       ├── domain/         # Lógica de negocio de usuarios
+│       │   ├── __init__.py
+│       │   ├── entities/  # Entidades de usuario
+│   │   │   ├── __init__.py
+│   │   │   └── user.py
+│   │   └── usecases/ # Casos de uso
+│   │       ├── __init__.py
+│   │       ├── get_user.py
+│   │       └── create_user.py
+│   │       └── infrastructure/ # Implementaciones técnicas
+│   │           ├── __init__.py
+│   │           ├── datasources/ # Fuentes de datos
+│   │           │   ├── __init__.py
+│   │           │   └── user_datasource.py
+│   │           └── repositories/ # Repositorios
+│   │               ├── __init__.py
+│   │               └── user_repository.py
+│   │
+│   └── core/                     # Componentes centrales compartidos
+│       ├── __init__.py
+│       ├── config/             # Configuraciones
+│       │   ├── __init__.py
+│       │   ├── settings.py
+│       │   └── rabbitmq.py
+│       └── utils/             # Utilidades comunes
+│           ├── __init__.py
+│           ├── logging.py
+│           └── exceptions.py
+│
+├── tests/                  # Pruebas
+│   ├── __init__.py
+│   ├── features/         # Pruebas por feature
+│   │   ├── rabbitmq/
+│   │   └── users/
+│   └── core/            # Pruebas de componentes centrales
+│
+├── .env.example          # Variables de entorno de ejemplo
+├── .gitignore
+├── pyproject.toml       # Configuración del proyecto
+├── README.md
+└── requirements.txt     # Dependencias
+```
+
+## Reglas de Desarrollo
+
+### 1. Arquitectura
+- Seguir principios de Clean Architecture
+- Separación clara entre capas: API, Dominio, Infraestructura
+- Cada capa solo puede depender de capas internas
+- No hay dependencias circulares
+
+### 2. RabbitMQ
+- Usar colas durables para persistencia
+- Implementar patrones de mensajería:
+  - Request/Response para operaciones síncronas
+  - Pub/Sub para eventos asíncronos
+- Manejar reconexiones automáticas
+- Implementar dead letter queues para mensajes fallidos
+
+### 3. FastAPI
+- Documentar todos los endpoints con OpenAPI
+- Validar entradas con Pydantic
+- Manejar errores de forma consistente
+- Implementar autenticación y autorización
+- Usar inyección de dependencias
+
+### 4. Código
+- Seguir PEP 8
+- Usar type hints
+- Documentar funciones y clases
+- Escribir pruebas unitarias y de integración
+- Mantener cobertura de código > 80%
+
+### 5. Mensajes RabbitMQ
+```python
+# Estructura base de mensajes
+{
+    "type": "event_type",      # Tipo de evento/acción
+    "payload": {               # Datos del mensaje
+        "key": "value"
+    },
+    "metadata": {              # Metadatos
+        "timestamp": "ISO8601",
+        "correlation_id": "uuid",
+        "response_queue": "queue_name"
+    }
+}
+```
+
+### 6. Manejo de Errores
+- Implementar circuit breakers
+- Logging consistente
+- Métricas y monitoreo
+- Retry policies para operaciones fallidas
+
+### 7. Despliegue
+- Usar Docker
+- Configuración mediante variables de entorno
+- Health checks
+- Escalabilidad horizontal
+
+### 8. Seguridad
+- Encriptar datos sensibles
+- Validar inputs
+- Rate limiting
+- CORS configurado
+
+### 9. Documentación
+- README detallado
+- Documentación de API
+- Guías de contribución
+- Ejemplos de uso
+
+### 10. Monitoreo
+- Logs estructurados
+- Métricas de rendimiento
+- Alertas
+- Trazabilidad de mensajes
+
+## Ejemplo de Flujo de Mensajes
+
+1. Cliente hace petición HTTP a FastAPI
+2. FastAPI valida y procesa la petición
+3. Se crea mensaje RabbitMQ con:
+   - Tipo de operación
+   - Payload con datos
+   - Correlation ID único
+   - Cola de respuesta
+4. Mensaje se envía a cola principal
+5. Consumer procesa mensaje
+6. Consumer envía respuesta a cola específica
+7. FastAPI recibe respuesta y la devuelve al cliente
+
+## Configuración Recomendada
+
+### RabbitMQ
+```python
+RABBITMQ_CONFIG = {
+    "host": "localhost",
+    "port": 5672,
+    "username": "guest",
+    "password": "guest",
+    "virtual_host": "/",
+    "heartbeat": 60,
+    "connection_attempts": 5,
+    "retry_delay": 5
+}
+```
+
+### FastAPI
+```python
+FASTAPI_CONFIG = {
+    "title": "Microservicio RabbitMQ",
+    "version": "1.0.0",
+    "docs_url": "/docs",
+    "redoc_url": "/redoc",
+    "openapi_url": "/openapi.json"
+}
+```
+
+## Próximos Pasos
+
+1. Limpiar estructura actual
+2. Implementar nueva estructura
+3. Configurar RabbitMQ
+4. Implementar FastAPI
+5. Desarrollar casos de uso
+6. Escribir pruebas
+7. Documentar
+8. Desplegar 
