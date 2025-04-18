@@ -1,14 +1,7 @@
 import json
 import logging
-import os
 
 import pika
-from dotenv import load_dotenv
-
-load_dotenv()
-
-RABBITMQ_URL = os.getenv("RABBITMQ_URL")
-RABBITMQ_QUEUE = os.getenv("RABBITMQ_QUEUE")
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -19,7 +12,7 @@ class RabbitMQServer:
     def __init__(self, channel: pika.adapters.blocking_connection.BlockingChannel):
         self.channel = channel
 
-    def start(self, queue, process_payload):
+    def create_server(self, queue, process_payload) -> None:
         self.channel.queue_declare(queue=queue)
         try:
 
@@ -51,12 +44,20 @@ class RabbitMQServer:
 
             # Configurar el consumo de mensajes
             self.channel.basic_qos(prefetch_count=1)
-            self.channel.basic_consume(queue=RABBITMQ_QUEUE, on_message_callback=callback)
+            self.channel.basic_consume(queue=queue, on_message_callback=callback)
 
-            logger.info(f" [*] Waiting for messages in queue '{RABBITMQ_QUEUE}'. To exit press CTRL+C")
-            self.channel.start_consuming()
+            logger.info(f" [*] Waiting for messages in queue '{queue}'. To exit press CTRL+C")
 
         except pika.exceptions.AMQPConnectionError as e:
             logger.error(f"Error connecting to RabbitMQ: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}")
+
+    def start(self) -> None:
+        try:
+            logger.info("Starting RabbitMQ server")
+            self.channel.start_consuming()
+        except KeyboardInterrupt:
+            logger.info("Interrupted by user")
         except Exception as e:
             logger.error(f"Unexpected error: {str(e)}")

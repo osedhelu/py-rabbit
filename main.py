@@ -16,8 +16,15 @@ app = FastAPI()
 rabbitmq = RabbitMQManager().conexionClient()
 
 
-@app.post("/process/")
+@app.post("/mult/")
 def process(payload: dict):
     message = json.dumps(payload)
-    response = rabbitmq.call(RABBITMQ_QUEUE, message)
+    response = rabbitmq.call(f"{RABBITMQ_QUEUE}_mul", message)
+    return {"result": response}
+
+
+@app.post("/sum/")
+def processSum(payload: dict):
+    message = json.dumps(payload)
+    response = rabbitmq.call(f"{RABBITMQ_QUEUE}_sum", message)
     return {"result": response}

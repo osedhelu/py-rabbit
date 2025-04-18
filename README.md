@@ -1,15 +1,19 @@
 # Microservicio RabbitMQ + FastAPI
 
-Microservicio que utiliza RabbitMQ como medio de comunicación y FastAPI para exponer endpoints REST.
+Microservicio que utiliza RabbitMQ como medio de comunicación y FastAPI para exponer endpoints REST, siguiendo una arquitectura limpia y modular.
 
 ## Características
 
-- Arquitectura limpia y modular
+- Arquitectura limpia y modular siguiendo Clean Architecture
 - Comunicación asíncrona con RabbitMQ
 - API REST con FastAPI
-- Manejo de errores robusto
+- Manejo de errores robusto con circuit breakers
 - Logging estructurado
 - Configuración mediante variables de entorno
+- Pruebas unitarias y de integración
+- Documentación OpenAPI
+- Monitoreo y métricas
+- Seguridad implementada
 
 ## Estructura del Proyecto
 
@@ -18,12 +22,28 @@ py-rabbit/
 ├── features/                    # Características del sistema
 │   ├── rabbitmq/               # Feature de RabbitMQ
 │   │   ├── api/               # Endpoints específicos de RabbitMQ
+│   │   │   ├── __init__.py
+│   │   │   └── routes.py
 │   │   ├── domain/           # Lógica de negocio de RabbitMQ
+│   │   │   ├── entities/    # Entidades específicas
+│   │   │   └── usecases/    # Casos de uso
 │   │   └── infrastructure/  # Implementaciones técnicas
+│   │       ├── datasources/ # Fuentes de datos
+│   │       └── repositories/ # Repositorios
 │   └── users/                # Feature de Usuarios
+│       ├── api/             # Endpoints de usuarios
+│       ├── domain/         # Lógica de negocio de usuarios
+│       └── infrastructure/ # Implementaciones técnicas
 ├── core/                     # Componentes centrales compartidos
+│   ├── config/             # Configuraciones
+│   └── utils/             # Utilidades comunes
 ├── tests/                  # Pruebas
+│   ├── features/         # Pruebas por feature
+│   └── core/            # Pruebas de componentes centrales
 ├── .env.example          # Variables de entorno de ejemplo
+├── .gitignore
+├── pyproject.toml       # Configuración del proyecto
+├── README.md
 └── requirements.txt     # Dependencias
 ```
 
@@ -32,6 +52,7 @@ py-rabbit/
 - Python 3.9+
 - RabbitMQ
 - pip
+- Docker (opcional)
 
 ## Instalación
 
@@ -64,24 +85,60 @@ cp .env.example .env
 
 1. Iniciar el servidor FastAPI:
 ```bash
-uvicorn src.main:app --reload
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-2. Iniciar el consumer de RabbitMQ:
+2. Iniciar el worker de RabbitMQ:
 ```bash
-python src/consumer.py
+python worker.py
 ```
 
 3. Acceder a la documentación de la API:
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
-## Endpoints
+## Configuración
 
 ### RabbitMQ
+```python
+RABBITMQ_CONFIG = {
+    "host": "localhost",
+    "port": 5672,
+    "username": "guest",
+    "password": "guest",
+    "virtual_host": "/",
+    "heartbeat": 60,
+    "connection_attempts": 5,
+    "retry_delay": 5
+}
+```
 
-- `POST /rabbitmq/send`: Envía un mensaje a RabbitMQ
-- `GET /rabbitmq/responses/{correlation_id}`: Obtiene una respuesta
+### FastAPI
+```python
+FASTAPI_CONFIG = {
+    "title": "Microservicio RabbitMQ",
+    "version": "1.0.0",
+    "docs_url": "/docs",
+    "redoc_url": "/redoc",
+    "openapi_url": "/openapi.json"
+}
+```
+
+## Estructura de Mensajes RabbitMQ
+
+```python
+{
+    "type": "event_type",      # Tipo de evento/acción
+    "payload": {               # Datos del mensaje
+        "key": "value"
+    },
+    "metadata": {              # Metadatos
+        "timestamp": "ISO8601",
+        "correlation_id": "uuid",
+        "response_queue": "queue_name"
+    }
+}
+```
 
 ## Ejemplo de Uso
 
@@ -92,8 +149,13 @@ import requests
 response = requests.post(
     "http://localhost:8000/rabbitmq/send",
     json={
-        "message_type": "get_user",
-        "payload": {"user_id": "123"}
+        "type": "get_user",
+        "payload": {"user_id": "123"},
+        "metadata": {
+            "timestamp": "2024-04-18T12:00:00Z",
+            "correlation_id": "uuid",
+            "response_queue": "responses"
+        }
     }
 )
 
@@ -105,6 +167,27 @@ response = requests.get(
     f"http://localhost:8000/rabbitmq/responses/{correlation_id}"
 )
 ```
+
+## Pruebas
+
+Ejecutar las pruebas:
+```bash
+pytest
+```
+
+## Monitoreo
+
+- Logs estructurados
+- Métricas de rendimiento
+- Alertas configuradas
+- Trazabilidad de mensajes
+
+## Seguridad
+
+- Encriptación de datos sensibles
+- Validación de inputs
+- Rate limiting implementado
+- CORS configurado
 
 ## Contribuir
 

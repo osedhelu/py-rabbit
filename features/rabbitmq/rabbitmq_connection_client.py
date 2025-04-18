@@ -3,13 +3,9 @@ import time
 import uuid
 
 import pika
-from dotenv import load_dotenv
 from pika.exceptions import AMQPChannelError, AMQPConnectionError, StreamLostError
 
 from features.rabbitmq.conexion import RabbitMQConnection
-
-load_dotenv()
-
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +13,21 @@ logger = logging.getLogger(__name__)
 class RabbitMQClient:
     def __init__(self, rabbit_conn: RabbitMQConnection):
         self.rabbit_conn = rabbit_conn
-        self.channel = rabbit_conn.channel
-        self.connection = rabbit_conn.connection
+        self.channel = None
+        self.connection = None
+        self.callback_queue = None
+        self.response = None
+        self.corr_id = None
+        self._setup_connection()
+
+    def _setup_connection(self):
+        """Configura la conexión inicial y la cola de callback"""
+        if not self.rabbit_conn.is_connected():
+            if not self.rabbit_conn.connect():
+                raise ConnectionError("No se pudo establecer la conexión inicial con RabbitMQ")
+
+        self.connection = self.rabbit_conn.connection
+        self.channel = self.rabbit_conn.channel
 
         # Declarar cola de callback
         result = self.channel.queue_declare(queue="", exclusive=True)
@@ -31,18 +40,10 @@ class RabbitMQClient:
 
     def ensure_connection(self):
         """Asegura que la conexión esté activa, reconectando si es necesario"""
-        if not self.connection or not self.connection.is_open:
+        if not self.rabbit_conn.is_connected():
             logger.warning("La conexión a RabbitMQ está cerrada. Intentando reconectar...")
             if self.rabbit_conn.reconnect():
-                self.connection = self.connection
-                self.channel = self.channel
-
-                # Re-declarar cola de callback
-                result = self.channel.queue_declare(queue="", exclusive=True)
-                self.callback_queue = result.method.queue
-                self.channel.basic_consume(
-                    queue=self.callback_queue, on_message_callback=self.on_response, auto_ack=True
-                )
+                self._setup_connection()
                 logger.info("Reconexión a RabbitMQ exitosa")
                 return True
             else:
@@ -82,8 +83,10 @@ class RabbitMQClient:
 
                     try:
                         self.connection.process_data_events(time_limit=1.0)
-                    except Exception as e:
+                    except (AMQPConnectionError, AMQPChannelError, StreamLostError) as e:
                         logger.error(f"Error al procesar eventos: {str(e)}")
+                        if not self.ensure_connection():
+                            raise ConnectionError("No se pudo reconectar después del error") from e
                         break
 
                 if self.response:
@@ -96,9 +99,9 @@ class RabbitMQClient:
             except (AMQPConnectionError, AMQPChannelError, StreamLostError, ConnectionError) as e:
                 retries += 1
                 logger.error(f"Error de conexión: {str(e)}. Reintento {retries}/{max_retries}")
-                # Esperamos antes de intentar reconectar
                 time.sleep(2)
-                self.ensure_connection()
+                if not self.ensure_connection():
+                    raise ConnectionError("No se pudo reconectar después del error") from e
 
             except Exception as e:
                 logger.error(f"Error inesperado: {str(e)}")

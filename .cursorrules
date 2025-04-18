@@ -33,31 +33,31 @@ py-rabbit/
 │       ├── domain/         # Lógica de negocio de usuarios
 │       │   ├── __init__.py
 │       │   ├── entities/  # Entidades de usuario
-│   │   │   ├── __init__.py
-│   │   │   └── user.py
-│   │   └── usecases/ # Casos de uso
-│   │       ├── __init__.py
-│   │       ├── get_user.py
-│   │       └── create_user.py
-│   │       └── infrastructure/ # Implementaciones técnicas
-│   │           ├── __init__.py
-│   │           ├── datasources/ # Fuentes de datos
-│   │           │   ├── __init__.py
-│   │           │   └── user_datasource.py
-│   │           └── repositories/ # Repositorios
-│   │               ├── __init__.py
-│   │               └── user_repository.py
-│   │
-│   └── core/                     # Componentes centrales compartidos
-│       ├── __init__.py
-│       ├── config/             # Configuraciones
-│       │   ├── __init__.py
-│       │   ├── settings.py
-│       │   └── rabbitmq.py
-│       └── utils/             # Utilidades comunes
+│       │   │   ├── __init__.py
+│       │   │   └── user.py
+│       │   └── usecases/ # Casos de uso
+│       │       ├── __init__.py
+│       │       ├── get_user.py
+│       │       └── create_user.py
+│       └── infrastructure/ # Implementaciones técnicas
 │           ├── __init__.py
-│           ├── logging.py
-│           └── exceptions.py
+│           ├── datasources/ # Fuentes de datos
+│           │   ├── __init__.py
+│           │   └── user_datasource.py
+│           └── repositories/ # Repositorios
+│               ├── __init__.py
+│               └── user_repository.py
+│
+├── core/                     # Componentes centrales compartidos
+│   ├── __init__.py
+│   ├── config/             # Configuraciones
+│   │   ├── __init__.py
+│   │   ├── settings.py
+│   │   └── rabbitmq.py
+│   └── utils/             # Utilidades comunes
+│       ├── __init__.py
+│       ├── logging.py
+│       └── exceptions.py
 │
 ├── tests/                  # Pruebas
 │   ├── __init__.py
@@ -80,6 +80,8 @@ py-rabbit/
 - Separación clara entre capas: API, Dominio, Infraestructura
 - Cada capa solo puede depender de capas internas
 - No hay dependencias circulares
+- Implementar inyección de dependencias
+- Usar interfaces para abstraer implementaciones
 
 ### 2. RabbitMQ
 - Usar colas durables para persistencia
@@ -88,6 +90,9 @@ py-rabbit/
   - Pub/Sub para eventos asíncronos
 - Manejar reconexiones automáticas
 - Implementar dead letter queues para mensajes fallidos
+- Usar exchanges para routing
+- Implementar retry policies
+- Manejar timeouts
 
 ### 3. FastAPI
 - Documentar todos los endpoints con OpenAPI
@@ -95,6 +100,9 @@ py-rabbit/
 - Manejar errores de forma consistente
 - Implementar autenticación y autorización
 - Usar inyección de dependencias
+- Implementar rate limiting
+- Configurar CORS
+- Usar middlewares para logging y monitoreo
 
 ### 4. Código
 - Seguir PEP 8
@@ -102,6 +110,9 @@ py-rabbit/
 - Documentar funciones y clases
 - Escribir pruebas unitarias y de integración
 - Mantener cobertura de código > 80%
+- Usar pre-commit hooks
+- Implementar linting
+- Usar formateadores de código
 
 ### 5. Mensajes RabbitMQ
 ```python
@@ -114,7 +125,9 @@ py-rabbit/
     "metadata": {              # Metadatos
         "timestamp": "ISO8601",
         "correlation_id": "uuid",
-        "response_queue": "queue_name"
+        "response_queue": "queue_name",
+        "retry_count": 0,
+        "error": null
     }
 }
 ```
@@ -124,30 +137,50 @@ py-rabbit/
 - Logging consistente
 - Métricas y monitoreo
 - Retry policies para operaciones fallidas
+- Manejar timeouts
+- Implementar fallbacks
+- Usar dead letter queues
+- Logging estructurado
 
 ### 7. Despliegue
 - Usar Docker
 - Configuración mediante variables de entorno
 - Health checks
 - Escalabilidad horizontal
+- Implementar CI/CD
+- Usar Docker Compose para desarrollo
+- Configurar monitoreo
+- Implementar backups
 
 ### 8. Seguridad
 - Encriptar datos sensibles
 - Validar inputs
 - Rate limiting
 - CORS configurado
+- Implementar autenticación JWT
+- Usar HTTPS
+- Validar tokens
+- Implementar roles y permisos
 
 ### 9. Documentación
 - README detallado
 - Documentación de API
 - Guías de contribución
 - Ejemplos de uso
+- Documentación de arquitectura
+- Guías de despliegue
+- Documentación de seguridad
+- Changelog
 
 ### 10. Monitoreo
 - Logs estructurados
 - Métricas de rendimiento
 - Alertas
 - Trazabilidad de mensajes
+- Monitoreo de salud
+- Métricas de negocio
+- Dashboard de monitoreo
+- Alertas automáticas
 
 ## Ejemplo de Flujo de Mensajes
 
@@ -175,7 +208,16 @@ RABBITMQ_CONFIG = {
     "virtual_host": "/",
     "heartbeat": 60,
     "connection_attempts": 5,
-    "retry_delay": 5
+    "retry_delay": 5,
+    "queue": {
+        "durable": True,
+        "exclusive": False,
+        "auto_delete": False
+    },
+    "exchange": {
+        "type": "direct",
+        "durable": True
+    }
 }
 ```
 
@@ -186,7 +228,16 @@ FASTAPI_CONFIG = {
     "version": "1.0.0",
     "docs_url": "/docs",
     "redoc_url": "/redoc",
-    "openapi_url": "/openapi.json"
+    "openapi_url": "/openapi.json",
+    "debug": False,
+    "reload": False,
+    "host": "0.0.0.0",
+    "port": 8000,
+    "middleware": [
+        "cors",
+        "logging",
+        "metrics"
+    ]
 }
 ```
 
@@ -199,4 +250,6 @@ FASTAPI_CONFIG = {
 5. Desarrollar casos de uso
 6. Escribir pruebas
 7. Documentar
-8. Desplegar 
+8. Desplegar
+9. Configurar CI/CD
+10. Implementar monitoreo 

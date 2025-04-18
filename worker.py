@@ -11,7 +11,18 @@ logger = logging.getLogger(__name__)
 RABBITMQ_QUEUE = RABBITMQ_CONFIG["queue"]
 
 
-def process_payload(payload):
+def process_payloadmul(payload):
+    try:
+        # Ejemplo: suma dos números
+        a = payload.get("a", 0)
+        b = payload.get("b", 0)
+        return {"mult": a * b}
+    except Exception as e:
+        logger.error(f"Error processing payload: {str(e)}")
+        return {"error": str(e)}
+
+
+def process_payloadsum(payload):
     try:
         # Ejemplo: suma dos números
         a = payload.get("a", 0)
@@ -24,7 +35,9 @@ def process_payload(payload):
 
 def main():
     server = RabbitMQManager().conexionServer()
-    server.start(RABBITMQ_QUEUE, process_payload)
+    server.create_server(f"{RABBITMQ_QUEUE}_mul", process_payloadmul)
+    server.create_server(f"{RABBITMQ_QUEUE}_sum", process_payloadsum)
+    server.start()
 
 
 if __name__ == "__main__":
