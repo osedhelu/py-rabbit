@@ -26,7 +26,6 @@ class RabbitMQClient:
             if not self.rabbit_conn.connect():
                 raise ConnectionError("No se pudo establecer la conexión inicial con RabbitMQ")
 
-        self.connection = self.rabbit_conn.connection
         self.channel = self.rabbit_conn.channel
 
         # Declarar cola de callback
@@ -82,7 +81,7 @@ class RabbitMQClient:
                         raise TimeoutError("Tiempo de espera agotado para la respuesta")
 
                     try:
-                        self.connection.process_data_events(time_limit=1.0)
+                        self.rabbit_conn.process_data_events(time_limit=1.0)
                     except (AMQPConnectionError, AMQPChannelError, StreamLostError) as e:
                         logger.error(f"Error al procesar eventos: {str(e)}")
                         if not self.ensure_connection():
