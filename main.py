@@ -5,8 +5,7 @@ Utiliza RabbitMQ para procesar las operaciones de forma asíncrona.
 
 import json
 import logging
-import time
-from typing import Any, Callable, Dict
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -46,51 +45,6 @@ class OperationResponse(BaseModel):
     operation: str
 
 
-def with_retry(operation: Callable, max_retries: int = 5, retry_delay: int = 2) -> Any:
-    """
-    Ejecuta una operación con reintentos en caso de error de conexión.
-
-    Args:
-        operation (Callable): Función a ejecutar
-        max_retries (int): Número máximo de reintentos
-        retry_delay (int): Tiempo de espera entre reintentos en segundos
-
-    Returns:
-        Any: Resultado de la operación
-
-    Raises:
-        HTTPException: Si la operación falla después de los reintentos
-    """
-    retries = 0
-    last_error = None
-
-    while retries < max_retries:
-        try:
-            return operation()
-        except Exception as e:
-            retries += 1
-            last_error = e
-            logger.warning(f"Intento {retries}/{max_retries} fallido: {str(e)}")
-
-            if retries < max_retries:
-                logger.info(f"Esperando {retry_delay} segundos antes de reintentar...")
-                time.sleep(retry_delay)
-
-                # Intentar reconectar
-                if not rabbit_manager.connection.is_connected():
-                    logger.info("Intentando reconectar con RabbitMQ...")
-                    if rabbit_manager.connection.reconnect():
-                        logger.info("Reconexión exitosa")
-                    else:
-                        logger.error("No se pudo reconectar con RabbitMQ")
-            else:
-                logger.error(f"Operación fallida después de {max_retries} intentos")
-                raise HTTPException(
-                    status_code=503,
-                    detail=f"Error de conexión con RabbitMQ después de {max_retries} intentos: {str(last_error)}",
-                ) from last_error
-
-
 @app.on_event("startup")
 async def startup_event():
     """Evento de inicio de la aplicación."""
@@ -115,7 +69,7 @@ async def shutdown_event():
 
 
 @app.post("/multiply/", response_model=OperationResponse)
-async def multiply(request: OperationRequest) -> Dict[str, Any]:
+async def multiply(request: OperationRequest) -> dict[str, Any]:
     """
     Endpoint para realizar multiplicaciones.
 
@@ -123,15 +77,14 @@ async def multiply(request: OperationRequest) -> Dict[str, Any]:
         request (OperationRequest): Petición con los números a multiplicar
 
     Returns:
-        Dict[str, Any]: Resultado de la multiplicación
+        dict[str, Any]: Resultado de la multiplicación
 
     Raises:
         HTTPException: Si hay error en la operación
     """
-
-    def operation():
+    try:
         payload = {"a": request.a, "b": request.b}
-        response = rabbit_manager.conexionClient().call(QUEUE_MULTIPLY, json.dumps(payload))
+        response = rabbit_manager.conexionClient().call(QUEUE_MULTIPLY, json.dumps(payload), max_retries=5)
 
         if not response:
             raise HTTPException(status_code=500, detail="No se recibió respuesta del worker")
@@ -141,12 +94,16 @@ async def multiply(request: OperationRequest) -> Dict[str, Any]:
             raise HTTPException(status_code=500, detail=f"Error en la multiplicación: {result['error']}")
 
         return {"result": result["result"], "operation": "multiply"}
-
-    return with_retry(operation)
+    except ConnectionError as e:
+        logger.error(f"Error de conexión en multiplicación: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"Error de conexión con RabbitMQ: {str(e)}") from e
+    except Exception as e:
+        logger.error(f"Error inesperado en multiplicación: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error en la operación: {str(e)}") from e
 
 
 @app.post("/sum/", response_model=OperationResponse)
-async def sum(request: OperationRequest) -> Dict[str, Any]:
+async def sum(request: OperationRequest) -> dict[str, Any]:
     """
     Endpoint para realizar sumas.
 
@@ -154,15 +111,14 @@ async def sum(request: OperationRequest) -> Dict[str, Any]:
         request (OperationRequest): Petición con los números a sumar
 
     Returns:
-        Dict[str, Any]: Resultado de la suma
+        dict[str, Any]: Resultado de la suma
 
     Raises:
         HTTPException: Si hay error en la operación
     """
-
-    def operation():
+    try:
         payload = {"a": request.a, "b": request.b}
-        response = rabbit_manager.conexionClient().call(QUEUE_SUM, json.dumps(payload))
+        response = rabbit_manager.conexionClient().call(QUEUE_SUM, json.dumps(payload), max_retries=5)
 
         if not response:
             raise HTTPException(status_code=500, detail="No se recibió respuesta del worker")
@@ -172,5 +128,9 @@ async def sum(request: OperationRequest) -> Dict[str, Any]:
             raise HTTPException(status_code=500, detail=f"Error en la suma: {result['error']}")
 
         return {"result": result["result"], "operation": "sum"}
-
-    return with_retry(operation)
+    except ConnectionError as e:
+        logger.error(f"Error de conexión en suma: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"Error de conexión con RabbitMQ: {str(e)}") from e
+    except Exception as e:
+        logger.error(f"Error inesperado en suma: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error en la operación: {str(e)}") from e

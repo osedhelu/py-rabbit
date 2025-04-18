@@ -5,7 +5,7 @@ Implementa dos workers independientes que consumen de colas diferentes.
 
 import signal
 import sys
-from typing import Any, Dict
+from typing import Any
 
 from core.config.settings import RABBITMQ_CONFIG
 from core.utils.logging import get_logger
@@ -19,15 +19,15 @@ QUEUE_MULTIPLY = f"{RABBITMQ_CONFIG['queue']}_mul"
 QUEUE_SUM = f"{RABBITMQ_CONFIG['queue']}_sum"
 
 
-def process_multiply(payload: Dict[str, Any]) -> Dict[str, Any]:
+def process_multiply(payload: dict[str, Any]) -> dict[str, Any]:
     """
     Procesa un mensaje para realizar una multiplicación.
 
     Args:
-        payload (Dict[str, Any]): Payload con los números a multiplicar
+        payload (dict[str, Any]): Payload con los números a multiplicar
 
     Returns:
-        Dict[str, Any]: Resultado de la multiplicación o error
+        dict[str, Any]: Resultado de la multiplicación o error
     """
     try:
         a = payload.get("a", 0)
@@ -40,15 +40,15 @@ def process_multiply(payload: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": str(e), "operation": "multiply"}
 
 
-def process_sum(payload: Dict[str, Any]) -> Dict[str, Any]:
+def process_sum(payload: dict[str, Any]) -> dict[str, Any]:
     """
     Procesa un mensaje para realizar una suma.
 
     Args:
-        payload (Dict[str, Any]): Payload con los números a sumar
+        payload (dict[str, Any]): Payload con los números a sumar
 
     Returns:
-        Dict[str, Any]: Resultado de la suma o error
+        dict[str, Any]: Resultado de la suma o error
     """
     try:
         a = payload.get("a", 0)

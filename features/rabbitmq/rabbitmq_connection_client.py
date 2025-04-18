@@ -127,7 +127,7 @@ class RabbitMQClient:
                     logger.warning(f"No se recibió respuesta. Reintento {retries}/{max_retries}")
                     time.sleep(2)  # Espera antes de reintentar
 
-            except (AMQPConnectionError, AMQPChannelError, StreamLostError, ConnectionError) as e:
+            except (AMQPConnectionError, AMQPChannelError, StreamLostError) as e:
                 retries += 1
                 last_error = e
                 logger.error(f"Error de conexión: {str(e)}. Reintento {retries}/{max_retries}")
@@ -135,12 +135,18 @@ class RabbitMQClient:
                 if not self.ensure_connection():
                     raise ConnectionError("No se pudo reconectar después del error") from e
 
+            except TimeoutError as e:
+                retries += 1
+                last_error = e
+                logger.error(f"Timeout esperando respuesta: {str(e)}. Reintento {retries}/{max_retries}")
+                time.sleep(2)
+
             except Exception as e:
                 logger.error(f"Error inesperado: {str(e)}")
                 raise
 
         if last_error:
             raise ConnectionError(
-                f"No se pudo completar la operación después de {max_retries} intentos"
+                f"No se pudo completar la operación después de {max_retries} intentos: {str(last_error)}"
             ) from last_error
         return None
